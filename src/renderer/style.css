@@ -1,0 +1,162 @@
+@font-face {
+    font-family: 'Pixel';
+    src: url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+}
+
+:root {
+    --glass-bg: rgba(20, 20, 25, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --accent: #00ffcc;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: transparent;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#widget-container {
+    width: 320px;
+    height: 240px;
+    margin: 0;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    user-select: none;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+#drag-area {
+    width: 100%;
+    height: 16px;
+    -webkit-app-region: drag;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 8px;
+    box-sizing: border-box;
+}
+
+#footer-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    padding: 0 10px;
+    box-sizing: border-box;
+    margin-top: -5px;
+}
+
+.project-label {
+    font-family: 'Pixel', 'Press Start 2P', cursive;
+    font-size: 8px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.9;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    pointer-events: none;
+    z-index: 10;
+    margin-bottom: 5px;
+    text-align: center;
+}
+
+#progress-container {
+    width: 100%;
+    height: 4px;
+    background-color: #ff3333;
+    border-radius: 2px;
+    position: relative;
+}
+
+#progress-bar {
+    height: 100%;
+    width: 0%;
+    background-color: var(--accent);
+    transition: width 0.3s ease;
+    box-shadow: 0 0 5px var(--accent);
+}
+
+.progress-tick {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background-color: rgba(20, 20, 25, 0.8);
+    z-index: 5;
+}
+
+#game-canvas {
+    width: 100%;
+    height: 170px;
+    background: transparent;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* Pergamino UI */
+#log-pergamino {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    background: #f4e4bc;
+    border: 8px solid #8b4513;
+    border-image: linear-gradient(#8b4513, #a0522d) 30;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 100;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+#log-pergamino.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.9);
+}
+
+.scroll-content {
+    overflow-y: auto;
+    flex: 1;
+    color: #4a2c14;
+}
+
+#milestone-title {
+    font-size: 14px;
+    margin: 0 0 5px 0;
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(74, 44, 20, 0.2);
+}
+
+#milestone-desc {
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+#close-log {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #8b4513;
+}
+
+#history-logs {
+    margin-top: 10px;
+    font-size: 10px;
+    font-style: italic;
+    opacity: 0.8;
+}

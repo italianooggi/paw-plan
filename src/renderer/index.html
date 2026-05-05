@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Journey Widget</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="widget-container">
+        <header id="drag-area"></header>
+        
+        <canvas id="game-canvas"></canvas>
+        
+        <div id="footer-area">
+            <div id="project-tag" class="project-label"></div>
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+
+        <div id="log-pergamino" class="hidden">
+            <div class="scroll-content">
+                <h3 id="milestone-title">Hito Actual</h3>
+                <p id="milestone-desc">Esperando plan...</p>
+                <div id="history-logs"></div>
+            </div>
+            <button id="close-log">×</button>
+        </div>
+    </div>
+    
+    <script src="app.js" type="module"></script>
+</body>
+</html>
