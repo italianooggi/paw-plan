@@ -9,26 +9,34 @@
 <body>
     <div id="widget-container">
         <header id="drag-area"></header>
-        
+
         <canvas id="game-canvas"></canvas>
-        
+
         <div id="footer-area">
-            <div id="project-tag" class="project-label"></div>
+            <div id="footer-top">
+                <div id="project-tag" class="project-label"></div>
+                <div id="current-task" class="current-task-label"></div>
+            </div>
             <div id="progress-container">
                 <div id="progress-bar"></div>
             </div>
         </div>
 
         <div id="log-pergamino" class="hidden">
-            <div class="scroll-content">
-                <h3 id="milestone-title">Hito Actual</h3>
-                <p id="milestone-desc">Esperando plan...</p>
-                <div id="history-logs"></div>
-            </div>
             <button id="close-log">×</button>
+            <div class="scroll-content">
+                <div id="vision-section" class="hidden">
+                    <p id="vision-text"></p>
+                </div>
+                <div id="task-list"></div>
+                <div id="history-section">
+                    <div class="history-divider">Historial</div>
+                    <div id="history-logs"></div>
+                </div>
+            </div>
         </div>
     </div>
-    
+
     <script src="app.js" type="module"></script>
 </body>
 </html>

@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sprite Scope — Paw Plan</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f14;
+    --panel: #1a1a24;
+    --border: #2e2e42;
+    --accent: #00ffcc;
+    --text: #cdd6f4;
+    --muted: #6c7086;
+    --green: #a6e3a1;
+    --red: #f38ba8;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', monospace, sans-serif;
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 7px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 13px; font-family: monospace; color: var(--accent); letter-spacing: 2px; }
+  .load-btn {
+    background: var(--accent); color: #000; border: none;
+    padding: 5px 14px; cursor: pointer; font-weight: bold; font-size: 11px; border-radius: 3px;
+  }
+  #cursor-info {
+    margin-left: auto; display: flex; gap: 16px;
+    font-family: monospace; font-size: 11px; color: var(--muted);
+  }
+  #cursor-info .val  { color: var(--text); }
+  #cursor-info .snap { color: var(--accent); }
+
+  /* ── Main ── */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ══════════════════════════════════════════
+     LEFT COLUMN
+  ══════════════════════════════════════════ */
+  .left {
+    width: 460px; flex-shrink: 0;
+    display: flex; flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  /* Preview strip — fixed height at top of left */
+  .preview-strip {
+    flex-shrink: 0;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 8px 10px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+
+  .preview-strip-row {
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+
+  .preview-block { flex-shrink: 0; }
+  .preview-label { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+
+  #preview-canvas {
+    display: block;
+    background: repeating-conic-gradient(#1a1a24 0% 25%, #13131c 0% 50%) 0 0 / 16px 16px;
+    border-radius: 3px; image-rendering: pixelated;
+  }
+
+  .overlay-block { flex: 1; min-width: 0; }
+  #overlay-canvas {
+    display: block; max-width: 100%; max-height: 120px;
+    background: repeating-conic-gradient(#1a1a24 0% 25%, #13131c 0% 50%) 0 0 / 10px 10px;
+    border-radius: 3px; image-rendering: pixelated;
+  }
+
+  .preview-info-row {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .preview-info-row span { font-size: 10px; color: var(--muted); font-family: monospace; }
+  #preview-info { color: var(--accent); }
+
+  /* Filmstrip inside preview strip */
+  .filmstrip-scroll { overflow-x: auto; }
+  #filmstrip-canvas {
+    display: block; image-rendering: pixelated;
+    background: repeating-conic-gradient(#1a1a24 0% 25%, #13131c 0% 50%) 0 0 / 10px 10px;
+    border-radius: 3px;
+  }
+
+  /* Sheet toolbar */
+  .sheet-toolbar {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    padding: 5px 10px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  .sheet-toolbar label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .zoom-btn {
+    background: var(--border); border: none; color: var(--text);
+    width: 22px; height: 22px; cursor: pointer; border-radius: 3px;
+    font-size: 14px; display: flex; align-items: center; justify-content: center;
+  }
+  #zoom-display { font-size: 11px; color: var(--accent); min-width: 28px; text-align: center; }
+  .tb-input {
+    width: 52px; background: var(--bg); border: 1px solid var(--border);
+    color: var(--accent); padding: 2px 5px;
+    font-family: monospace; font-size: 11px; border-radius: 2px;
+  }
+  .tb-input:focus { outline: none; border-color: var(--accent); }
+
+  /* Sheet area — scrollable, takes remaining space */
+  .sheet-area {
+    flex: 1; overflow: auto; background: #060609; position: relative; display: flex;
+  }
+  #ruler-canvas {
+    width: 40px; flex-shrink: 0;
+    background: var(--panel); border-right: 1px solid var(--border);
+    image-rendering: pixelated; display: block;
+    position: sticky; left: 0; z-index: 2;
+  }
+  #sheet-canvas {
+    display: block; flex-shrink: 0;
+    cursor: crosshair; image-rendering: pixelated;
+  }
+  #load-hint {
+    position: absolute; inset: 0;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px;
+    color: var(--muted); font-size: 13px;
+    background: rgba(6,6,9,0.9); z-index: 10;
+  }
+  #load-hint.visible { display: flex; }
+
+  /* ══════════════════════════════════════════
+     RIGHT COLUMN — single natural scroll
+  ══════════════════════════════════════════ */
+  .right {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    padding: 14px; display: flex; flex-direction: column; gap: 12px;
+  }
+
+  /* Panels — NO overflow:hidden, grow to content */
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 5px;
+  }
+  .panel-header {
+    padding: 6px 12px;
+    background: var(--border); border-radius: 5px 5px 0 0;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-body { padding: 12px; }
+
+  /* Config grid — all 6 fields */
+  .config-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 10px; color: var(--muted); }
+  .field input {
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); padding: 5px 7px; border-radius: 3px;
+    font-size: 12px; font-family: monospace; width: 100%;
+  }
+  .field input:focus { outline: none; border-color: var(--accent); }
+
+  /* Save row */
+  .save-row { display: flex; gap: 8px; align-items: center; }
+  .save-row input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); padding: 7px 10px; border-radius: 3px;
+    font-size: 12px; font-family: monospace;
+  }
+  .save-row input:focus { outline: none; border-color: var(--accent); }
+
+  .btn { border: none; padding: 7px 16px; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: bold; white-space: nowrap; }
+  .btn-accent { background: var(--accent); color: #000; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Library list */
+  .anim-list { display: flex; flex-direction: column; gap: 4px; }
+  .anim-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; background: var(--bg); border-radius: 4px;
+    border: 1px solid var(--border); cursor: pointer; transition: border-color 0.1s;
+  }
+  .anim-item:hover { border-color: var(--accent); }
+  .anim-item.selected { border-color: var(--accent); background: rgba(0,255,204,0.05); }
+  .anim-name { flex: 1; font-family: monospace; font-size: 12px; color: var(--accent); }
+  .anim-meta { font-size: 10px; color: var(--muted); }
+  .del-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--red);
+    width: 20px; height: 20px; border-radius: 3px; cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.1s;
+  }
+  .anim-item:hover .del-btn { opacity: 1; }
+  .empty-msg { font-size: 11px; color: var(--muted); text-align: center; padding: 10px; }
+
+  /* Code output */
+  #code-output {
+    background: var(--bg); border: 1px solid var(--border); color: var(--green);
+    font-family: monospace; font-size: 11px; padding: 10px; border-radius: 4px;
+    width: 100%; resize: vertical; min-height: 100px;
+  }
+  .copy-row { display: flex; justify-content: flex-end; margin-top: 8px; align-items: center; }
+  #copy-status { font-size: 11px; color: var(--green); margin-right: auto; opacity: 0; transition: opacity 0.3s; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>◈ SPRITE SCOPE</h1>
+  <button class="load-btn" onclick="document.getElementById('file-input').click()">Load Spritesheet</button>
+  <input type="file" id="file-input" accept="image/*" style="display:none" onchange="loadFile(event)">
+  <span style="font-size:11px; color:var(--muted)">Click = set start · Shift+Click = extend frames · ↑↓ = row · ←→ = frames · <span style="color:var(--accent)">Alt+↑↓←→ = fine offset</span></span>
+  <div id="cursor-info">
+    <span>x:<span class="val" id="ci-x">—</span></span>
+    <span>y:<span class="val" id="ci-y">—</span></span>
+    <span>snap→<span class="snap" id="ci-snap">—</span></span>
+    <span>col:<span class="snap" id="ci-col">—</span></span>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ════ LEFT ════ -->
+  <div class="left">
+
+    <!-- Preview strip — always visible at top -->
+    <div class="preview-strip">
+      <div class="preview-info-row">
+        <span>PREVIEW</span>
+        <span id="preview-info">—</span>
+      </div>
+      <div class="preview-strip-row">
+        <div class="preview-block">
+          <div class="preview-label">Live (2×)</div>
+          <canvas id="preview-canvas"></canvas>
+        </div>
+        <div class="overlay-block">
+          <div class="preview-label">Frame overlay</div>
+          <canvas id="overlay-canvas"></canvas>
+        </div>
+      </div>
+      <div>
+        <div class="preview-label">Filmstrip</div>
+        <div class="filmstrip-scroll">
+          <canvas id="filmstrip-canvas"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sheet toolbar -->
+    <div class="sheet-toolbar">
+      <label>Zoom:</label>
+      <button class="zoom-btn" onclick="setZoom(-1)">−</button>
+      <span id="zoom-display">2×</span>
+      <button class="zoom-btn" onclick="setZoom(+1)">+</button>
+      <label style="margin-left:10px">
+        <input type="checkbox" id="grid-toggle" checked onchange="redrawSheet()"> Grid
+      </label>
+      <label style="margin-left:6px">
+        <input type="checkbox" id="sel-toggle" checked onchange="redrawSheet()"> Selection
+      </label>
+      <label style="margin-left:10px">Snap cellH:</label>
+      <input type="number" id="snap-cellH" value="108" min="1" class="tb-input" oninput="redrawSheet(); drawRuler()">
+    </div>
+
+    <!-- Spritesheet — scrollable -->
+    <div class="sheet-area">
+      <canvas id="ruler-canvas" width="40"></canvas>
+      <canvas id="sheet-canvas"></canvas>
+      <div id="load-hint" class="visible">
+        <span>Spritesheet not loaded</span>
+        <button class="load-btn" onclick="document.getElementById('file-input').click()">Load Spritesheet</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════ RIGHT — one big scroll ════ -->
+  <div class="right">
+
+    <!-- Cell Config -->
+    <div class="panel">
+      <div class="panel-header">
+        Cell Configuration
+        <span style="color:var(--accent); font-size:10px" id="sel-summary">rowY:0 · col:0 · ×8f · 114×108</span>
+      </div>
+      <div class="panel-body">
+        <div class="config-grid">
+          <div class="field"><label>cellW (px)</label><input type="number" id="cfg-cellW" value="114" min="1" oninput="onConfigChange()"></div>
+          <div class="field"><label>cellH (px)</label><input type="number" id="cfg-cellH" value="108" min="1" oninput="onConfigChange()"></div>
+          <div class="field"><label>speed (ticks)</label><input type="number" id="cfg-speed" value="20" min="1" oninput="onConfigChange()"></div>
+          <div class="field"><label>rowY (px)</label><input type="number" id="cfg-rowY" value="0" min="0" oninput="onConfigChange()"></div>
+          <div class="field"><label>startCol</label><input type="number" id="cfg-startCol" value="0" min="0" oninput="onConfigChange()"></div>
+          <div class="field"><label>frames</label><input type="number" id="cfg-frames" value="8" min="1" oninput="onConfigChange()"></div>
+          <div class="field"><label>offsetX (px) <span style="color:var(--accent)">fine</span></label><input type="number" id="cfg-offsetX" value="0" oninput="onConfigChange()"></div>
+          <div class="field"><label>offsetY (px) <span style="color:var(--accent)">fine</span></label><input type="number" id="cfg-offsetY" value="0" oninput="onConfigChange()"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save -->
+    <div class="panel">
+      <div class="panel-header">Save Animation</div>
+      <div class="panel-body">
+        <div class="save-row">
+          <input type="text" id="anim-name" placeholder="e.g. attack">
+          <button class="btn btn-accent" onclick="saveAnimation()">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Library -->
+    <div class="panel">
+      <div class="panel-header">
+        Library
+        <span id="anim-count" style="color:var(--accent); font-size:10px">0</span>
+      </div>
+      <div class="panel-body">
+        <div class="anim-list" id="anim-list">
+          <div class="empty-msg">No animations yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Code -->
+    <div class="panel">
+      <div class="panel-header">Code Output</div>
+      <div class="panel-body">
+        <textarea id="code-output" readonly placeholder="Save an animation to generate code..."></textarea>
+        <div class="copy-row">
+          <span id="copy-status">Copied!</span>
+          <button class="btn btn-ghost" onclick="copyCode()">Copy All</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end right -->
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+let img = null;
+const ZOOM_LEVELS = [0.5, 1, 1.5, 2, 3, 4];
+let zoomIdx = 3;
+let zoom = ZOOM_LEVELS[zoomIdx];
+const PREVIEW_SCALE = 2;
+
+let cur = { rowY: 0, startCol: 0, frames: 8, cellW: 114, cellH: 108, speed: 20, offsetX: 0, offsetY: 0 };
+let savedAnims = {};
+let selectedName = null;
+
+let previewFrame = 0;
+let previewTick  = 0;
+let lastTime     = 0;
+let tickAccum    = 0;
+let rafId        = null;
+const TICK_MS    = 1000 / 60;
+
+const BUILTIN_ANIMS = {
+  idle:   { rowY: 0,   startCol: 0, frames: 8, cellW: 114, cellH: 108, speed: 20, offsetX: 0, offsetY: 0 },
+  walk:   { rowY: 108, startCol: 0, frames: 9, cellW: 114, cellH: 108, speed: 20, offsetX: 0, offsetY: 0 },
+  jump:   { rowY: 216, startCol: 0, frames: 7, cellW: 114, cellH: 140, speed: 20, offsetX: 0, offsetY: 0 },
+  fall:   { rowY: 356, startCol: 0, frames: 4, cellW: 114, cellH: 132, speed: 20, offsetX: 0, offsetY: 0 },
+  attack: { rowY: 488, startCol: 0, frames: 6, cellW: 114, cellH: 108, speed: 8,  offsetX: 0, offsetY: 0 },
+  hurt:   { rowY: 596, startCol: 0, frames: 4, cellW: 114, cellH: 108, speed: 12, offsetX: 0, offsetY: 0 },
+  die:    { rowY: 704, startCol: 0, frames: 6, cellW: 114, cellH: 108, speed: 20, offsetX: 0, offsetY: 0 },
+  sleep:  { rowY: 812, startCol: 0, frames: 5, cellW: 114, cellH: 108, speed: 25, offsetX: 0, offsetY: 0 },
+};
+
+// ── Auto-load ──────────────────────────────────────────────────
+(function() {
+  const t = new Image();
+  t.onload = () => { img = t; onImageLoaded(); };
+  t.onerror = () => {};
+  t.src = './src/assets/pixelart_gato.webp';
+})();
+
+function loadFile(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    const i = new Image();
+    i.onload = () => { img = i; document.getElementById('load-hint').classList.remove('visible'); onImageLoaded(); };
+    i.src = e.target.result;
+  };
+  r.readAsDataURL(file);
+}
+
+function onImageLoaded() {
+  document.getElementById('load-hint').classList.remove('visible');
+  loadFromStorage();
+  drawSheetCanvas();
+  drawRuler();
+  resizePreview();
+  startLoop();
+}
+
+// ── Storage ────────────────────────────────────────────────────
+function loadFromStorage() {
+  try {
+    const s = localStorage.getItem('spriteScope_anims');
+    savedAnims = s ? JSON.parse(s) : { ...BUILTIN_ANIMS };
+  } catch { savedAnims = { ...BUILTIN_ANIMS }; }
+  renderList();
+  genCode();
+  const first = Object.keys(savedAnims)[0];
+  if (first) applyAnim(savedAnims[first], first);
+}
+
+function persist() { localStorage.setItem('spriteScope_anims', JSON.stringify(savedAnims)); }
+
+// ── Zoom ───────────────────────────────────────────────────────
+function setZoom(d) {
+  zoomIdx = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, zoomIdx + d));
+  zoom = ZOOM_LEVELS[zoomIdx];
+  document.getElementById('zoom-display').textContent = zoom + '×';
+  drawSheetCanvas();
+  drawRuler();
+}
+
+// ── Sheet canvas ───────────────────────────────────────────────
+function drawSheetCanvas() {
+  if (!img) return;
+  const c = document.getElementById('sheet-canvas');
+  c.width  = Math.round(img.width  * zoom);
+  c.height = Math.round(img.height * zoom);
+  redrawSheet();
+}
+
+function redrawSheet() {
+  if (!img) return;
+  const c   = document.getElementById('sheet-canvas');
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+
+  const { rowY, startCol, frames, cellW, cellH } = cur;
+  const cW = cellW * zoom;
+  const cH = cellH * zoom;
+
+  // Grid
+  if (document.getElementById('grid-toggle').checked) {
+    const snapH = (parseFloat(document.getElementById('snap-cellH').value) || cellH) * zoom;
+    ctx.strokeStyle = 'rgba(0,255,204,0.18)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= c.width + cW; x += cW) {
+      const px = Math.round(x);
+      ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, c.height); ctx.stroke();
+    }
+    for (let y = 0; y <= c.height + snapH; y += snapH) {
+      const py = Math.round(y);
+      ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(c.width, py); ctx.stroke();
+    }
+  }
+
+  // Selection
+  if (document.getElementById('sel-toggle').checked && frames > 0) {
+    const { offsetX, offsetY } = cur;
+    const sx = startCol * cW + offsetX * zoom, sy = (rowY + offsetY) * zoom;
+    const sw = frames * cW,                    sh = cH;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, c.width, sy);
+    ctx.fillRect(0, sy + sh, c.width, c.height - sy - sh);
+    ctx.fillRect(0, sy, sx, sh);
+    ctx.fillRect(sx + sw, sy, c.width - sx - sw, sh);
+
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sx + 1, sy + 1, sw - 2, sh - 2);
+
+    ctx.fillStyle = 'rgba(0,255,204,0.22)';
+    ctx.fillRect(sx + previewFrame * cW, sy, cW, sh);
+
+    const fs = Math.max(7, Math.min(11, cW * 0.09));
+    ctx.fillStyle = 'rgba(0,255,204,0.85)';
+    ctx.font = `bold ${fs}px monospace`;
+    ctx.textAlign = 'left';
+    for (let i = 0; i < frames; i++) {
+      ctx.fillText(i, sx + i * cW + 3, sy + fs + 2);
+    }
+  }
+}
+
+// ── Y ruler ───────────────────────────────────────────────────
+function drawRuler() {
+  if (!img) return;
+  const rc  = document.getElementById('ruler-canvas');
+  const sh  = Math.round(img.height * zoom);
+  rc.height = sh;
+  const ctx = rc.getContext('2d');
+  const W   = rc.width;
+
+  ctx.fillStyle = '#1a1a24';
+  ctx.fillRect(0, 0, W, sh);
+
+  const snapH  = parseFloat(document.getElementById('snap-cellH').value) || 108;
+  const stepPx = snapH * zoom;
+
+  ctx.textAlign = 'right';
+  for (let row = 0; row * stepPx <= sh; row++) {
+    const y      = Math.round(row * stepPx);
+    const isEven = row % 2 === 0;
+    ctx.strokeStyle = isEven ? '#4a4a6a' : '#2e2e42';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(W - (isEven ? 8 : 4), y); ctx.lineTo(W, y); ctx.stroke();
+    if (stepPx >= 14 || isEven) {
+      ctx.fillStyle = '#6c7086';
+      ctx.font = '9px monospace';
+      ctx.fillText(row * snapH, W - 10, y + 9);
+    }
+  }
+
+  const selPy = Math.round(cur.rowY * zoom);
+  ctx.strokeStyle = '#00ffcc';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, selPy); ctx.lineTo(W, selPy); ctx.stroke();
+}
+
+// ── Mouse on sheet ─────────────────────────────────────────────
+const sheetC = document.getElementById('sheet-canvas');
+
+sheetC.addEventListener('mousemove', e => {
+  const r     = sheetC.getBoundingClientRect();
+  const pixX  = Math.round((e.clientX - r.left) / zoom);
+  const pixY  = Math.round((e.clientY - r.top)  / zoom);
+  const snapH = parseFloat(document.getElementById('snap-cellH').value) || cur.cellH;
+  document.getElementById('ci-x').textContent    = pixX;
+  document.getElementById('ci-y').textContent    = pixY;
+  document.getElementById('ci-snap').textContent = Math.floor(pixY / snapH) * snapH;
+  document.getElementById('ci-col').textContent  = Math.floor(pixX / cur.cellW);
+});
+
+sheetC.addEventListener('mouseleave', () => {
+  ['ci-x','ci-y','ci-snap','ci-col'].forEach(id => document.getElementById(id).textContent = '—');
+});
+
+sheetC.addEventListener('click', e => {
+  if (!img) return;
+  const r     = sheetC.getBoundingClientRect();
+  const pixX  = Math.round((e.clientX - r.left) / zoom);
+  const pixY  = Math.round((e.clientY - r.top)  / zoom);
+  const snapH = parseFloat(document.getElementById('snap-cellH').value) || cur.cellH;
+  const col   = Math.floor(pixX / cur.cellW);
+  const sY    = Math.floor(pixY / snapH) * snapH;
+
+  if (e.shiftKey) {
+    cur.frames = Math.max(1, col - cur.startCol + 1);
+    document.getElementById('cfg-frames').value = cur.frames;
+  } else {
+    cur.rowY     = sY;
+    cur.startCol = col;
+    document.getElementById('cfg-rowY').value     = sY;
+    document.getElementById('cfg-startCol').value = col;
+    previewFrame = 0; previewTick = 0;
+  }
+  syncConfig();
+  drawRuler();
+});
+
+// ── Config ─────────────────────────────────────────────────────
+function onConfigChange() {
+  cur.cellW    = parseInt(document.getElementById('cfg-cellW').value)    || 114;
+  cur.cellH    = parseInt(document.getElementById('cfg-cellH').value)    || 108;
+  cur.speed    = parseInt(document.getElementById('cfg-speed').value)    || 20;
+  cur.rowY     = parseInt(document.getElementById('cfg-rowY').value)     || 0;
+  cur.startCol = parseInt(document.getElementById('cfg-startCol').value) || 0;
+  cur.frames   = parseInt(document.getElementById('cfg-frames').value)   || 1;
+  cur.offsetX  = parseInt(document.getElementById('cfg-offsetX').value)  || 0;
+  cur.offsetY  = parseInt(document.getElementById('cfg-offsetY').value)  || 0;
+  syncConfig();
+  drawRuler();
+}
+
+function syncConfig() {
+  updateSummary();
+  resizePreview();
+  redrawSheet();
+  drawFilmstrip();
+  drawOverlay();
+}
+
+function updateSummary() {
+  document.getElementById('sel-summary').textContent =
+    `rowY:${cur.rowY} · col:${cur.startCol} · ×${cur.frames}f · ${cur.cellW}×${cur.cellH}`;
+}
+
+// ── Preview loop ───────────────────────────────────────────────
+function resizePreview() {
+  const c = document.getElementById('preview-canvas');
+  c.width  = cur.cellW * PREVIEW_SCALE;
+  c.height = cur.cellH * PREVIEW_SCALE;
+}
+
+function startLoop() {
+  if (rafId) cancelAnimationFrame(rafId);
+  lastTime = performance.now(); tickAccum = 0;
+  loop(lastTime);
+}
+
+function loop(now) {
+  rafId = requestAnimationFrame(loop);
+  const dt = now - lastTime;
+  lastTime  = now;
+  tickAccum += dt;
+
+  let advanced = false;
+  while (tickAccum >= TICK_MS) {
+    tickAccum -= TICK_MS;
+    previewTick++;
+    if (previewTick >= cur.speed) {
+      previewTick  = 0;
+      previewFrame = (previewFrame + 1) % Math.max(1, cur.frames);
+      advanced     = true;
+    }
+  }
+
+  if (advanced) { redrawSheet(); drawFilmstrip(); }
+  drawPreview();
+
+  document.getElementById('preview-info').textContent =
+    `frame ${previewFrame + 1} / ${cur.frames}  speed: ${cur.speed}t`;
+}
+
+function drawPreview() {
+  if (!img) return;
+  const c = document.getElementById('preview-canvas');
+  if (!c.width || !c.height) return;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, c.width, c.height);
+  const sx = (cur.startCol + previewFrame) * cur.cellW + (cur.offsetX || 0);
+  const sy = cur.rowY + (cur.offsetY || 0);
+  ctx.drawImage(img, sx, sy, cur.cellW, cur.cellH, 0, 0, c.width, c.height);
+}
+
+function drawOverlay() {
+  if (!img) return;
+  const { rowY, startCol, frames, cellW, cellH } = cur;
+  const scale = Math.min(PREVIEW_SCALE, 160 / Math.max(cellW, 1));
+  const c     = document.getElementById('overlay-canvas');
+  c.width  = Math.round(cellW  * scale);
+  c.height = Math.round(cellH  * scale);
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, c.width, c.height);
+  const { offsetX = 0, offsetY = 0 } = cur;
+  ctx.globalAlpha = 1 / Math.max(1, frames);
+  for (let i = 0; i < frames; i++) {
+    ctx.drawImage(img, (startCol + i) * cellW + offsetX, rowY + offsetY, cellW, cellH, 0, 0, c.width, c.height);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawFilmstrip() {
+  if (!img) return;
+  const { rowY, startCol, frames, cellW, cellH } = cur;
+  const fh     = Math.min(60, Math.max(36, cellH * 0.5));
+  const scale  = fh / cellH;
+  const fw     = Math.round(cellW * scale);
+  const gap    = 3;
+  const labelH = 13;
+  const c      = document.getElementById('filmstrip-canvas');
+  c.width  = frames * (fw + gap) - gap;
+  c.height = fh + labelH;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.textAlign = 'center';
+
+  for (let i = 0; i < frames; i++) {
+    const dx = i * (fw + gap);
+    const active = (i === previewFrame);
+    if (active) {
+      ctx.fillStyle = 'rgba(0,255,204,0.18)';
+      ctx.fillRect(dx, 0, fw, fh);
+      ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(dx + 0.75, 0.75, fw - 1.5, fh - 1.5);
+    }
+    const { offsetX = 0, offsetY = 0 } = cur;
+    ctx.drawImage(img, (startCol + i) * cellW + offsetX, rowY + offsetY, cellW, cellH, dx, 0, fw, fh);
+    ctx.fillStyle = active ? '#00ffcc' : '#6c7086';
+    ctx.font = '9px monospace';
+    ctx.fillText(i, dx + fw / 2, fh + labelH - 2);
+  }
+}
+
+// ── Save / Load / Delete ───────────────────────────────────────
+function saveAnimation() {
+  const name = document.getElementById('anim-name').value.trim();
+  if (!name) { alert('Enter a name.'); return; }
+  savedAnims[name] = { ...cur };
+  selectedName     = name;
+  persist(); renderList(); genCode();
+  document.getElementById('anim-name').value = '';
+}
+
+function applyAnim(cfg, name) {
+  cur          = { ...cfg };
+  selectedName = name || null;
+  document.getElementById('cfg-cellW').value     = cfg.cellW;
+  document.getElementById('cfg-cellH').value     = cfg.cellH;
+  document.getElementById('cfg-speed').value     = cfg.speed;
+  document.getElementById('cfg-rowY').value      = cfg.rowY;
+  document.getElementById('cfg-startCol').value  = cfg.startCol;
+  document.getElementById('cfg-frames').value    = cfg.frames;
+  document.getElementById('cfg-offsetX').value   = cfg.offsetX || 0;
+  document.getElementById('cfg-offsetY').value   = cfg.offsetY || 0;
+  document.getElementById('snap-cellH').value    = cfg.cellH;
+  previewFrame = 0; previewTick = 0;
+  syncConfig(); drawRuler(); renderList();
+}
+
+function deleteAnim(name, e) {
+  e.stopPropagation();
+  if (!confirm(`Delete "${name}"?`)) return;
+  delete savedAnims[name];
+  if (selectedName === name) selectedName = null;
+  persist(); renderList(); genCode();
+}
+
+function renderList() {
+  const list  = document.getElementById('anim-list');
+  const names = Object.keys(savedAnims);
+  document.getElementById('anim-count').textContent = names.length;
+  if (!names.length) { list.innerHTML = '<div class="empty-msg">No animations yet.</div>'; return; }
+  list.innerHTML = names.map(n => {
+    const a   = savedAnims[n];
+    const sel = n === selectedName ? 'selected' : '';
+    return `<div class="anim-item ${sel}" onclick="applyAnim(savedAnims['${n}'],'${n}')">
+      <span class="anim-name">${n}</span>
+      <span class="anim-meta">rowY:${a.rowY} col:${a.startCol} ×${a.frames}f ${a.cellW}×${a.cellH}</span>
+      <button class="del-btn" onclick="deleteAnim('${n}',event)">×</button>
+    </div>`;
+  }).join('');
+}
+
+function genCode() {
+  const names = Object.keys(savedAnims);
+  if (!names.length) { document.getElementById('code-output').value = ''; return; }
+  const lines = names.map(n => {
+    const a  = savedAnims[n];
+    const ox = a.offsetX || 0, oy = a.offsetY || 0;
+    const offPart = (ox || oy) ? `, offsetX: ${ox}, offsetY: ${oy}` : '';
+    return `    ${n.padEnd(8)}: { row: ${Math.floor(a.rowY/a.cellH)}, startCol: ${a.startCol}, frames: ${a.frames}, speed: ${a.speed}, cellW: ${a.cellW}, cellH: ${a.cellH}, rowY: ${a.rowY}${offPart}, offsets: Array(${a.frames}).fill([0,0]) },`;
+  });
+  document.getElementById('code-output').value = `const animations = {\n${lines.join('\n')}\n};`;
+}
+
+function copyCode() {
+  const v = document.getElementById('code-output').value;
+  if (!v) return;
+  navigator.clipboard.writeText(v).then(() => {
+    const s = document.getElementById('copy-status');
+    s.style.opacity = '1';
+    setTimeout(() => s.style.opacity = '0', 1500);
+  });
+}
+
+// ── Keyboard ───────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const snap = parseFloat(document.getElementById('snap-cellH').value) || cur.cellH;
+  if (e.altKey) {
+    // Alt+Arrow = fine offset adjustment (1px at a time)
+    if (e.key === 'ArrowRight') { cur.offsetX = (cur.offsetX||0) + 1; document.getElementById('cfg-offsetX').value = cur.offsetX; syncConfig(); e.preventDefault(); }
+    if (e.key === 'ArrowLeft')  { cur.offsetX = (cur.offsetX||0) - 1; document.getElementById('cfg-offsetX').value = cur.offsetX; syncConfig(); e.preventDefault(); }
+    if (e.key === 'ArrowDown')  { cur.offsetY = (cur.offsetY||0) + 1; document.getElementById('cfg-offsetY').value = cur.offsetY; syncConfig(); e.preventDefault(); }
+    if (e.key === 'ArrowUp')    { cur.offsetY = (cur.offsetY||0) - 1; document.getElementById('cfg-offsetY').value = cur.offsetY; syncConfig(); e.preventDefault(); }
+  } else {
+    if (e.key === 'ArrowRight') { cur.frames++; document.getElementById('cfg-frames').value = cur.frames; syncConfig(); }
+    if (e.key === 'ArrowLeft')  { cur.frames = Math.max(1,cur.frames-1); document.getElementById('cfg-frames').value = cur.frames; syncConfig(); }
+    if (e.key === 'ArrowUp')    { cur.rowY = Math.max(0,cur.rowY-snap); document.getElementById('cfg-rowY').value = cur.rowY; syncConfig(); drawRuler(); }
+    if (e.key === 'ArrowDown')  { cur.rowY += snap; document.getElementById('cfg-rowY').value = cur.rowY; syncConfig(); drawRuler(); }
+  }
+});
+
+// ── Init ───────────────────────────────────────────────────────
+loadFromStorage();
+updateSummary();
+resizePreview();
+</script>
+</body>
+</html>

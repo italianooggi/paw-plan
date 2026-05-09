@@ -2,7 +2,6 @@
   "name": "widget-trip-agent",
   "version": "1.0.0",
   "description": "Paw Plan — Agent Journey Widget for multi-project coding companions",
-  "type": "module",
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron ."
