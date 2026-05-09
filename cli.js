@@ -5,6 +5,7 @@
  * Usage: paw-plan <action> [message/file]
  *
  * Actions:
+ *   vision <text>     Set the OKR / north star vision (always visible in pergamino)
  *   sync <file.md>    Parse Markdown (tasks) and set plan
  *   set-plan <json>   Set implementation plan directly
  *   progress <idx>    Mark task N as done
@@ -19,13 +20,35 @@ import { WebSocket } from 'ws';
 import fs from 'fs';
 import path from 'path';
 
-const [,, action, ...rest] = process.argv;
+const args = process.argv.slice(2);
+const action = args.find(a => !a.startsWith('--'));
+const rest = args.filter(a => a !== action && !a.startsWith('--'));
 const arg = rest.join(' ');
+
+// Parse flags --project-id=XYZ --project-name=ABC
+const projectIdFlag = process.argv.find(a => a.startsWith('--project-id='))?.split('=')[1];
+const projectNameFlag = process.argv.find(a => a.startsWith('--project-name='))?.split('=')[1];
+
+// ID basado en el path del repo (base64 corto) para consistencia
+const repoPath = process.cwd();
+const defaultProjectId = Buffer.from(repoPath).toString('base64').substring(0, 10).replace(/[/+=]/g, '');
+const defaultProjectName = path.basename(repoPath);
+
+const projectId = projectIdFlag || defaultProjectId;
+const projectName = projectNameFlag || defaultProjectName;
 
 let msg;
 
+if (action === 'vision') {
+    if (!arg) {
+        console.error('Usage: paw-plan vision "Tu OKR o visión del proyecto"');
+        process.exit(1);
+    }
+    msg = { type: 'SET_VISION', text: arg };
+    console.log(`Setting vision: "${arg}"`);
+
 // Parse plan from Markdown (e.g., task.md or implementation_plan.md)
-if (action === 'sync') {
+} else if (action === 'sync') {
     const filePath = arg || 'task.md';
     try {
         const content = fs.readFileSync(path.resolve(filePath), 'utf8');
@@ -43,7 +66,18 @@ if (action === 'sync') {
         }
 
         msg = { type: 'SET_PLAN', plan };
-        console.log(`Syncing plan from ${filePath} (${plan.length} tasks)...`);
+
+        // Also build UPDATE_PROGRESS for already-done tasks
+        const doneUpdates = [];
+        plan.forEach((task, i) => {
+            if (task.status === 'x') {
+                doneUpdates.push({ type: 'UPDATE_PROGRESS', index: i, message: `✅ ${task.title}` });
+            }
+        });
+        // Attach so the WS sender can send them in order
+        msg._followUp = doneUpdates;
+
+        console.log(`Syncing plan from ${filePath} (${plan.length} tasks, ${doneUpdates.length} done)...`);
     } catch (err) {
         console.error(`Error reading ${filePath}:`, err.message);
         process.exit(1);
@@ -68,41 +102,86 @@ if (action === 'sync') {
 
 } else {
     const ACTION_MAP = {
-        ping:    { type: 'PING' },
-        jump:    { type: 'LOOP_ACTION', action: 'jump' },
-        die:     { type: 'MISTAKE',     message: arg },
-        error:   { type: 'MISTAKE',     message: arg },
-        fall:    { type: 'PLAN_CHANGED', message: arg },
-        attack:  { type: 'WORKING' },
-        working: { type: 'WORKING' },
-        explore: { type: 'EXPLORING' },
-        exploring: { type: 'EXPLORING' },
-        danger:  { type: 'DANGER' },
-        walk:    { type: 'LOOP_ACTION', action: 'walk' },
-        dash:    { type: 'LOOP_ACTION', action: 'dash' },
-        idle:    { type: 'STOP' },
-        sleep:   { type: 'LOOP_ACTION', action: 'sleep' },
+        // keep-alive
+        ping:         { type: 'PING' },
+
+        // trabajo activo
+        working:      { type: 'WORKING' },
+        attack:       { type: 'WORKING' },
+        running:      { type: 'RUNNING' },
+        run:          { type: 'RUNNING' },
+        exploring:    { type: 'EXPLORING' },
+        explore:      { type: 'EXPLORING' },
+        thinking:     { type: 'THINKING' },
+        think:        { type: 'THINKING' },
+        climbing:     { type: 'CLIMBING' },
+        climb:        { type: 'CLIMBING' },
+
+        // estados pasivos
+        idle:         { type: 'STOP' },
+        sleeping:     { type: 'SLEEPING' },
+        sleep:        { type: 'SLEEPING' },
+
+        // necesita input
+        waiting:      { type: 'WAITING_INPUT', message: arg },
+        'wait-input': { type: 'WAITING_INPUT', message: arg },
+
+        // progreso
+        'all-done':   { type: 'ALL_DONE', message: arg },
+
+        // problemas
+        danger:       { type: 'DANGER',        message: arg },
+        error:        { type: 'MISTAKE',        message: arg },
+        die:          { type: 'MISTAKE',        message: arg },
+        fall:         { type: 'PLAN_CHANGED',   message: arg },
     };
 
     if (!action || !ACTION_MAP[action]) {
         console.log('Paw-Plan CLI — Help');
-        console.log('Usage:');
-        console.log('  paw-plan sync [file.md]    (Default: task.md)');
-        console.log('  paw-plan done <index>      (Marks task as complete)');
-        console.log('  paw-plan working           (Animation: attack)');
-        console.log('  paw-plan exploring         (Animation: walk)');
-        console.log('  paw-plan error "message"   (Animation: die)');
+        console.log('');
+        console.log('  paw-plan vision "OKR..."       North star del proyecto');
+        console.log('  paw-plan sync [file.md]        Carga plan desde markdown (default: task.md)');
+        console.log('  paw-plan done <index>          Marca tarea como completa');
+        console.log('  paw-plan all-done              Todas las tareas completas');
+        console.log('');
+        console.log('  paw-plan working               Codificando — attack');
+        console.log('  paw-plan running               Ejecutando tests/scripts — run');
+        console.log('  paw-plan exploring             Leyendo archivos — walk');
+        console.log('  paw-plan thinking              Planificando — idle');
+        console.log('  paw-plan climbing              Refactor profundo — stairs');
+        console.log('  paw-plan waiting "msg"         Necesita input del usuario — run urgente');
+        console.log('');
+        console.log('  paw-plan idle                  Detiene animación activa');
+        console.log('  paw-plan sleeping              Espera larga');
+        console.log('  paw-plan danger "msg"          Situación de riesgo — hurt');
+        console.log('  paw-plan error "msg"           Error — die');
+        console.log('  paw-plan fall "msg"            Plan cambió — fall');
+        console.log('');
         process.exit(1);
     }
     msg = ACTION_MAP[action];
 }
 
-const ws = new WebSocket('ws://localhost:9123');
+const ws = new WebSocket('ws://127.0.0.1:9123');
 
 ws.on('open', () => {
-    ws.send(JSON.stringify(msg));
-    console.log(`Event sent to widget: ${msg.type}`);
-    setTimeout(() => ws.close(), 100);
+    const { _followUp, ...mainMsg } = msg;
+    const finalMsg = { ...mainMsg, projectId, projectName };
+    ws.send(JSON.stringify(finalMsg));
+    console.log(`Event [${action}] sent for project: ${projectName} (#${projectId.substring(0,4)})`);
+
+    // Send follow-up messages (e.g. UPDATE_PROGRESS for done tasks) with delays
+    if (_followUp && _followUp.length > 0) {
+        _followUp.forEach((fu, i) => {
+            setTimeout(() => {
+                const fuMsg = { ...fu, projectId, projectName };
+                ws.send(JSON.stringify(fuMsg));
+            }, (i + 1) * 200);
+        });
+        setTimeout(() => ws.close(), (_followUp.length + 1) * 200 + 100);
+    } else {
+        setTimeout(() => ws.close(), 100);
+    }
 });
 
 ws.on('error', (err) => {
