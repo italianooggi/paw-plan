@@ -266,3 +266,25 @@ body {
     line-height: 1;
     padding: 2px 4px;
 }
+
+#paw-toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    background: rgba(20, 20, 25, 0.88);
+    color: var(--accent);
+    font-size: 9px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 999;
+}
+#paw-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}

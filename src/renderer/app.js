@@ -239,7 +239,7 @@ function drawCharacter() {
         } else {
             nextState = (state.currentHito === state.plan.length - 1 && state.plan.length > 0) ? 'sleep' : 'idle';
         }
-        if (nextState !== char.state) { char.state = nextState; char.frame = 0; char.timer = 0; }
+        if (nextState !== char.state) { char.state = nextState; char.frame = 0; char.timer = 0; char.flip = false; }
     }
     char.timer++;
     const anim = animations[char.state];
@@ -320,7 +320,7 @@ function doRun(duration, flip, onDone) {
 function celebrateTaskDone() {
     doJump(45, 600, () => {
         char.state = 'idle'; char.frame = 0; char.timer = 0;
-        char.pinned = false;
+        char.pinned = false; char.flip = false;
     });
 }
 
@@ -341,7 +341,7 @@ function celebrateAllDone() {
                             [784, 1047, 1319].forEach((f, i) =>
                                 setTimeout(() => beep(f, 0.2, 'square', 0.1), i * 90));
                             char.state = 'idle'; char.frame = 0; char.timer = 0;
-                            char.pinned = false;
+                            char.pinned = false; char.flip = false;
                         });
                     }, 200);
                 });
@@ -367,6 +367,19 @@ function beep(freq, duration, type = 'square', volume = 0.1) {
 function playNotificationSound() { beep(440, 0.1); }
 function playMilestoneSound() { beep(523.25, 0.1); setTimeout(() => beep(659.25, 0.1), 100); }
 function playStartSound() { [523, 659, 784].forEach((f, i) => setTimeout(() => beep(f, 0.12), i * 80)); }
+
+function showToast(text) {
+    let toast = document.getElementById('paw-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'paw-toast';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = text;
+    toast.classList.add('visible');
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => toast.classList.remove('visible'), 3000);
+}
 function playSadSound() { [392, 330, 294, 247, 220].forEach((f, i) => setTimeout(() => beep(f, 0.3, 'sine', 0.08), i * 220)); }
 function playDangerSound() { beep(200, 0.15, 'sawtooth', 0.08); setTimeout(() => beep(180, 0.2, 'sawtooth', 0.06), 160); }
 
@@ -376,6 +389,17 @@ function wakeUp() {
     lastMessageTime = Date.now();
     if (char.state === 'sleep' && !char.pinned) { char.state = 'idle'; char.frame = 0; char.timer = 0; }
 }
+
+window.electronAPI.onGetState((requestId) => {
+    window.electronAPI.sendStateResponse(requestId, {
+        projectId: state.projectId,
+        projectName: state.projectName,
+        vision: state.vision,
+        plan: state.plan,
+        currentHito: state.currentHito,
+        agentState: char.state,
+    });
+});
 
 window.electronAPI.onAgentData((data) => {
     wakeUp();
@@ -394,6 +418,7 @@ window.electronAPI.onAgentData((data) => {
             break;
 
         case 'SET_PLAN':
+            if (data.hadPlan) showToast('Plan reemplazado 🐾');
             state.plan = data.plan;
             state.currentHito = -1;
             state.map.targetOffsetX = 0;
@@ -408,6 +433,20 @@ window.electronAPI.onAgentData((data) => {
             _triggerLoopAction('run');
             setTimeout(() => { char.pinned = false; char.loopVX = 0; }, 1500);
             break;
+
+        case 'RESTORE_STATE': {
+            const s = data.state?.current;
+            if (!s || !s.tasks?.length) break;
+            if (data.state.current.vision) { state.vision = data.state.current.vision; updateVisionDisplay(); }
+            state.plan = s.tasks.map(t => ({ title: t.title, status: t.status === 'done' ? 'x' : ' ' }));
+            state.currentHito = s.tasks.filter(t => t.status === 'done').length - 1;
+            generateMap(state.plan.length);
+            updateProgressBarUI();
+            renderTaskList();
+            updateCurrentTaskDisplay();
+            showToast('Plan restaurado 🐾');
+            break;
+        }
 
         case 'UPDATE_PROGRESS':
             state.currentHito = data.index;
@@ -510,14 +549,17 @@ window.electronAPI.onAgentData((data) => {
 
 // --- Drag to move window ---
 
-let dragging = false, dragLastX = 0, dragLastY = 0, didDrag = false;
-canvas.addEventListener('mousedown', (e) => { dragging = true; didDrag = false; dragLastX = e.screenX; dragLastY = e.screenY; e.preventDefault(); });
+let dragging = false, dragStartX = 0, dragStartY = 0, didDrag = false;
+canvas.addEventListener('mousedown', (e) => {
+    dragging = true; didDrag = false;
+    dragStartX = e.screenX; dragStartY = e.screenY;
+    window.electronAPI.dragStart();
+    e.preventDefault();
+});
 window.addEventListener('mousemove', (e) => {
     if (!dragging) return;
     didDrag = true;
-    const dx = e.screenX - dragLastX, dy = e.screenY - dragLastY;
-    dragLastX = e.screenX; dragLastY = e.screenY;
-    window.electronAPI.moveWindow(dx, dy);
+    window.electronAPI.moveWindow(e.screenX - dragStartX, e.screenY - dragStartY);
 });
 window.addEventListener('mouseup', () => { dragging = false; });
 container.addEventListener('click', () => { if (!didDrag) pergamino.classList.toggle('hidden'); });
