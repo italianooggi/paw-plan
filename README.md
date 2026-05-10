@@ -1,6 +1,6 @@
 # paw-plan 🐾
 
-CLI notifier for the **Agent Journey Widget**. Sends real-time status events from AI agents to the widget for visual progress tracking.
+CLI for the **Paw Plan Widget** — a pixel art cat on your desktop that reflects your AI agent's work state in real time.
 
 ## Installation
 
@@ -8,33 +8,72 @@ CLI notifier for the **Agent Journey Widget**. Sends real-time status events fro
 npm install -g paw-plan
 ```
 
+The widget must be running for commands to have effect. Start it from the [widget-trip-agent](https://github.com/italianooggi/widget-trip-agent) repo with `npm start`.
+
 ## Usage
 
-Ensure the **Agent Journey Widget** is running (default port 9123).
-
-### 1. Syncing a Plan
-The CLI can parse a Markdown file (like `task.md` or `implementation_plan.md`) and generate a journey map in the widget.
+### Vision + plan
 
 ```bash
-paw-plan sync task.md
+paw-plan vision "Refactor the auth module"
+paw-plan set-plan '[{"title":"Read current code"},{"title":"Write tests"},{"title":"Implement change"}]'
+paw-plan sync task.md   # load plan from a markdown file with checkboxes
 ```
 
-### 2. Updating Progress
-Mark a task as completed by index (0-based).
+### Work state
 
 ```bash
-paw-plan done 0 "Finished research"
+paw-plan working      # editing files → attack animation
+paw-plan running      # running tests/builds → run animation
+paw-plan exploring    # reading files → walk animation
+paw-plan thinking     # planning, waiting for API → idle animation
+paw-plan climbing     # deep refactor, nested code → stairs animation
 ```
 
-### 3. Status Animations
-Trigger specific animations for the character:
+### Progress
 
 ```bash
-paw-plan working    # Animation: attack
-paw-plan exploring  # Animation: walk
-paw-plan error "..." # Animation: die
-paw-plan ping       # Wake up the widget
+paw-plan done 0       # mark task 0 complete (0-based index)
+paw-plan done 1
+paw-plan all-done     # everything done → festive celebration
+```
+
+### Needs user input
+
+```bash
+paw-plan waiting "need you to approve this change"
+```
+
+### Problems
+
+```bash
+paw-plan danger "about to drop the DB"   # hurt animation
+paw-plan error "build exploded"          # die animation
+paw-plan fall "changed approach"         # fall animation
+```
+
+### Passive states
+
+```bash
+paw-plan idle         # stop current animation
+paw-plan sleeping     # long wait (> 30s)
+paw-plan ping         # keep-alive, wakes the cat
+```
+
+## Typical flow
+
+```
+paw-plan ping
+paw-plan vision "What we're building"
+paw-plan set-plan '[{"title":"Step 1"},{"title":"Step 2"}]'
+paw-plan exploring    # reading files
+paw-plan working      # writing code
+paw-plan done 0
+paw-plan running      # running tests
+paw-plan done 1
+paw-plan all-done
 ```
 
 ## License
+
 MIT
