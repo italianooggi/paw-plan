@@ -6,6 +6,7 @@ const { WebSocketServer } = require('ws');
 const windows = new Map();
 const pendingMessages = new Map();
 const projectPaths = new Map();
+const MAX_WINDOWS = 8;
 let wss;
 let tray = null;
 
@@ -114,7 +115,7 @@ function createTray() {
 }
 
 function startWebSocketServer() {
-  wss = new WebSocketServer({ port: 9123 });
+  wss = new WebSocketServer({ port: 9123, host: '127.0.0.1' });
 
   wss.on('error', (error) => {
     console.error('WebSocket Server Error:', error);
@@ -142,6 +143,10 @@ function startWebSocketServer() {
         }
 
         if (!windows.has(projectId)) {
+          if (windows.size >= MAX_WINDOWS) {
+            console.warn(`[Security Alert] Max windows limit reached (${MAX_WINDOWS}). Connection rejected for projectId: ${projectId}`);
+            return;
+          }
           createProjectWindow(projectId, data.projectName || projectId, data.projectPath || null);
         }
 
@@ -152,7 +157,7 @@ function startWebSocketServer() {
     });
   });
 
-  console.log('Servidor WebSocket escuchando en el puerto 9123');
+  console.log('Servidor WebSocket escuchando en el puerto 9123 en localhost');
 }
 
 app.whenReady().then(() => {

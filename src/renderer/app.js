@@ -82,6 +82,16 @@ const state = {
 
 // --- Helpers ---
 
+function escapeHTML(str) {
+    if (!str) return '';
+    return str.toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function stringToColor(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -147,7 +157,7 @@ function renderTaskList() {
 
         const cls = 'task-item' + (isDone ? ' done' : '') + (isCurrent ? ' current' : '');
         const icon = isDone ? '✓' : isCurrent ? '→' : '○';
-        return `<div class="${cls}"><span class="task-icon">${icon}</span><span class="task-title">${task.title}</span></div>`;
+        return `<div class="${cls}"><span class="task-icon">${icon}</span><span class="task-title">${escapeHTML(task.title)}</span></div>`;
     }).join('');
 }
 
@@ -176,7 +186,7 @@ function updateVisionDisplay() {
 function addToHistory(title, desc) {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const entry = document.createElement('div');
-    entry.innerHTML = `<strong>[${time}]</strong> ${title}${desc ? ' — ' + desc : ''}`;
+    entry.innerHTML = `<strong>[${time}]</strong> ${escapeHTML(title)}${desc ? ' — ' + escapeHTML(desc) : ''}`;
     historyLogs.prepend(entry);
 }
 
