@@ -1,13 +1,15 @@
 const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { WebSocketServer } = require('ws');
+const { spawn } = require('child_process');
+const WebSocket = require('ws');
 
 const windows = new Map();
 const pendingMessages = new Map();
 const projectPaths = new Map();
 const MAX_WINDOWS = 8;
-let wss;
+let wsClient = null;
+let daemonProcess = null;
 let tray = null;
 
 function readProjectState(projectPath) {
@@ -114,56 +116,92 @@ function createTray() {
   tray.setContextMenu(buildMenu());
 }
 
-function startWebSocketServer() {
-  wss = new WebSocketServer({ port: 9123, host: '127.0.0.1' });
+function startGoDaemon() {
+  const devPath = path.join(__dirname, '../../cmd/paw-plan-server/paw-plan-server.exe');
+  const prodPath = path.join(process.resourcesPath, 'paw-plan-server.exe');
 
-  wss.on('error', (error) => {
-    console.error('WebSocket Server Error:', error);
-  });
+  let binaryPath = devPath;
+  if (app.isPackaged) {
+    binaryPath = prodPath;
+  }
 
-  wss.on('connection', (ws) => {
-    console.log('Agente conectado al widget');
-
-    ws.on('message', async (message) => {
-      try {
-        const data = JSON.parse(message);
-        const projectId = data.projectId || 'default';
-
-        if (data.type === 'GET_STATE') {
-          const win = windows.get(projectId);
-          if (!win) { ws.send(JSON.stringify({ type: 'STATE', error: 'no window for project' })); return; }
-          const requestId = `${Date.now()}-${Math.random()}`;
-          const stateData = await new Promise((resolve) => {
-            pendingStateRequests.set(requestId, resolve);
-            win.webContents.send('get-state', requestId);
-            setTimeout(() => { pendingStateRequests.delete(requestId); resolve(null); }, 3000);
-          });
-          ws.send(JSON.stringify({ type: 'STATE', ...stateData }));
-          return;
-        }
-
-        if (!windows.has(projectId)) {
-          if (windows.size >= MAX_WINDOWS) {
-            console.warn(`[Security Alert] Max windows limit reached (${MAX_WINDOWS}). Connection rejected for projectId: ${projectId}`);
-            return;
-          }
-          createProjectWindow(projectId, data.projectName || projectId, data.projectPath || null);
-        }
-
-        sendToWindow(projectId, data);
-      } catch (e) {
-        console.error('Error parseando mensaje del agente:', e);
-      }
+  if (fs.existsSync(binaryPath)) {
+    console.log('Spawning Go Daemon from:', binaryPath);
+    daemonProcess = spawn(binaryPath, [], {
+      detached: false,
+      stdio: 'ignore'
     });
+  } else {
+    console.error('Go Daemon binary not found at:', binaryPath);
+  }
+}
+
+function ensureProjectWindow(projectId, projectName, projectPath) {
+  if (!windows.has(projectId)) {
+    if (windows.size >= MAX_WINDOWS) {
+      console.warn(`[Security Alert] Max windows limit reached (${MAX_WINDOWS}). Cannot create window for: ${projectId}`);
+      return null;
+    }
+    createProjectWindow(projectId, projectName, projectPath);
+  }
+  return windows.get(projectId);
+}
+
+function connectToGoDaemon() {
+  console.log('Connecting to Go Daemon WS...');
+  wsClient = new WebSocket('ws://127.0.0.1:9123?client=gui');
+
+  wsClient.on('open', () => {
+    console.log('Successfully connected to Go Daemon');
   });
 
-  console.log('Servidor WebSocket escuchando en el puerto 9123 en localhost');
+  wsClient.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      
+      if (data.type === 'GUI_SYNC') {
+        if (data.states) {
+          for (const p of data.states) {
+            ensureProjectWindow(p.projectId, p.projectName, p.projectPath);
+            setTimeout(() => {
+              sendToWindow(p.projectId, {
+                type: 'RESTORE_STATE',
+                state: {
+                  current: {
+                    vision: p.vision,
+                    tasks: p.plan
+                  }
+                }
+              });
+            }, 500);
+          }
+        }
+      } else {
+        const projectId = data.projectId || 'default';
+        ensureProjectWindow(projectId, data.projectName || projectId, data.projectPath || null);
+        sendToWindow(projectId, data);
+      }
+    } catch (e) {
+      console.error('Error parsing daemon message:', e);
+    }
+  });
+
+  wsClient.on('close', () => {
+    console.log('Go Daemon connection closed, retrying in 2 seconds...');
+    setTimeout(connectToGoDaemon, 2000);
+  });
+
+  wsClient.on('error', (err) => {
+    console.error('Go Daemon WS error:', err.message);
+  });
 }
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.pawplan.widget');
   createTray();
-  startWebSocketServer();
+  startGoDaemon();
+  // Give Go Daemon 500ms to boot up before connecting
+  setTimeout(connectToGoDaemon, 500);
 
   app.on('activate', () => {
     if (windows.size === 0) {
@@ -172,16 +210,15 @@ app.whenReady().then(() => {
   });
 });
 
-// Con tray activo, no cerramos la app cuando se cierran todas las ventanas
 app.on('window-all-closed', () => {
   // intencional: la app sigue viva en el system tray
 });
 
-const pendingStateRequests = new Map();
-
-ipcMain.on('state-response', (_event, { requestId, stateData }) => {
-  const resolve = pendingStateRequests.get(requestId);
-  if (resolve) { resolve(stateData); pendingStateRequests.delete(requestId); }
+app.on('will-quit', () => {
+  if (daemonProcess) {
+    console.log('Killing Go Daemon...');
+    daemonProcess.kill();
+  }
 });
 
 const dragOrigin = new WeakMap();
