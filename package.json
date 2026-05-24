@@ -3,15 +3,16 @@
   "version": "1.0.0",
   "description": "Paw Plan — Agent Journey Widget for multi-project coding companions",
   "main": "src/main/main.js",
+  "author": "Gus",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win"
   },
   "dependencies": {
-    "electron": "^33.0.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "electron": "^33.0.0",
     "electron-builder": "^25.0.0"
   },
   "build": {
