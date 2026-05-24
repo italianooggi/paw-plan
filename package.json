@@ -25,6 +25,12 @@
       "src/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "cmd/paw-plan-server/paw-plan-server.exe",
+        "to": "paw-plan-server.exe"
+      }
+    ],
     "win": {
       "target": "nsis",
       "icon": "src/assets/gato_solo.png"
