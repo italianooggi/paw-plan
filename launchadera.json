@@ -1,0 +1,14 @@
+{
+  "id": "paw-plan",
+  "name": "paw-plan",
+  "path": "c:/Users/Gus/Documents/Repositorios/widget-trip-agent",
+  "port": 9123,
+  "commands": {
+    "build": "pnpm run build",
+    "go:build-cli": "go build -ldflags=\"-s -w\" -o cmd/paw-plan/paw-plan.exe cmd/paw-plan/main.go",
+    "go:build-server": "go build -ldflags=\"-s -w\" -o cmd/paw-plan-server/paw-plan-server.exe cmd/paw-plan-server/main.go",
+    "start": "pnpm start"
+  },
+  "gga_enabled": true,
+  "gga_script": "tools/validate_gga.ps1"
+}
