@@ -70,12 +70,32 @@ type WSMessage struct {
 
 // --- Helpers ---
 
+func findGitRoot(startDir string) string {
+	dir, err := filepath.Abs(startDir)
+	if err != nil {
+		dir = startDir
+	}
+	for {
+		gitDir := filepath.Join(dir, ".git")
+		if _, err := os.Stat(gitDir); err == nil {
+			return dir
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return startDir
+}
+
 func getProjectMetadata(customID, customName string) (string, string, string) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		cwd = "."
 	}
-	repoPath := filepath.Clean(cwd)
+	repoPath := findGitRoot(filepath.Clean(cwd))
 
 	var projectID string
 	if customID != "" {

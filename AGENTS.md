@@ -30,19 +30,15 @@ paw-plan vision "What this task is ultimately about"
 Then commit to a plan:
 
 ```bash
-# From JSON
-paw-plan set-plan '[{"title":"Read relevant files"},{"title":"Implement change"},{"title":"Verify result"}]'
-
-# From a markdown file with checkboxes
-paw-plan sync task.md
+# Sync the general plan / roadmap (e.g., todo.md or general task list)
+paw-plan sync todo.md
 ```
 
 **Rules for a good plan:**
-- One task = one concrete action, completable and verifiable in a single response
-- Execution order, top to bottom
-- Action-oriented titles: "Add login validation", not "Login"
-- 3 to 8 tasks — split larger work into phases
-- No "plan" tasks — the plan IS the planning
+- **Sync the General Plan / Roadmap**: The plan displayed by the cat widget must be the overall roadmap or project milestone checklist (e.g., `todo.md` or `general_plan.md` in the root).
+- **DO NOT sync short-term plans**: Never run `paw-plan sync task.md` with turn-specific checklists containing micro-steps like "Read relevant files", "Implement change", "Verify results". Those are temporary and reset the cat's progress. Keep those in your conversation artifacts `task.md` but do not sync them to the cat.
+- **Milestone-oriented**: Plan items should represent clear project milestones or complete feature steps (e.g., "Implement JWT Auth", "Design Glassmorphic HUD").
+- **Update via roadmap or done**: To mark progress, modify the general roadmap file and run `paw-plan sync todo.md` again, or use `paw-plan done <index>`.
 
 ---
 
